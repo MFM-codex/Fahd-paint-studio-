@@ -1,0 +1,70 @@
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #1e1e28;
+  font-family: system-ui, sans-serif;
+  touch-action: none;
+}
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  background: #14141c;
+  color: #eee;
+  flex-wrap: wrap;
+}
+
+#toolbar input[type="color"] {
+  width: 38px;
+  height: 38px;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.slider-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  color: #ccc;
+}
+
+.slider-label input[type="range"] {
+  width: 90px;
+}
+
+#toolbar button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #3a3a4d;
+  color: #fff;
+  font-size: 13px;
+}
+
+#canvasWrap {
+  position: relative;
+  width: 100%;
+  height: calc(100% - 70px);
+  background: #ffffff;
+  touch-action: none;
+}
+
+#drawCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
