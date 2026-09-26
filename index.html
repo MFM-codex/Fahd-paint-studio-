@@ -21,12 +21,21 @@
       Opacity
       <input type="range" id="opacitySlider" min="1" max="100" value="100">
     </label>
-    <button id="clearBtn">Clear</button>
+    <button id="clearBtn">Clear Layer</button>
     <button id="saveBtn">Save PNG</button>
+    <button id="layersToggleBtn">Layers</button>
   </div>
 
   <div id="canvasWrap">
     <canvas id="drawCanvas"></canvas>
+  </div>
+
+  <div id="layerPanel" class="hidden">
+    <div id="layerPanelHeader">
+      <span>Layers</span>
+      <button id="addLayerBtn">+ Add</button>
+    </div>
+    <div id="layerList"></div>
   </div>
 
   <script src="app.js"></script>
