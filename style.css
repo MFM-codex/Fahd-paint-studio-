@@ -1,3 +1,33 @@
+/* ============================================================
+   Vibe Draw — "studio" theme
+   Dark canvas-app look: floating rounded toolbar, glassy layer
+   panel, one confident accent color, custom sliders.
+   ============================================================ */
+
+:root {
+  --bg: #17171d;
+  --surface: #212128;
+  --surface-2: #2a2a33;
+  --surface-3: #34343f;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #eceef2;
+  --text-muted: #9698a6;
+
+  --accent: #5b8def;
+  --accent-soft: rgba(91, 141, 239, 0.16);
+  --accent-strong: #7ea3f5;
+
+  --danger: #e8607a;
+  --danger-soft: rgba(232, 96, 122, 0.16);
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+
+  --shadow-float: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -8,55 +38,194 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: #1e1e28;
-  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   touch-action: none;
 }
 
+/* ---------------- Toolbar ---------------- */
+
 #toolbar {
+  position: relative;
+  z-index: 5;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
-  padding-top: calc(8px + env(safe-area-inset-top, 0px));
-  background: #14141c;
-  color: #eee;
+  align-items: stretch;
+  gap: 10px;
   flex-wrap: wrap;
+  margin: 10px 10px 0 10px;
+  margin-top: calc(10px + env(safe-area-inset-top, 0px));
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
 }
 
-#toolbar input[type="color"] {
-  width: 38px;
-  height: 38px;
-  border: none;
-  background: none;
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+}
+
+.tool-group + .tool-group {
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+
+/* Color swatch */
+
+.swatch-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  padding: 3px;
+  background: conic-gradient(from 180deg, #ff5f6d, #ffc371, #47e6b1, #5b8def, #b06be0, #ff5f6d);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+
+.swatch-wrap input[type="color"] {
+  width: 100%;
+  height: 100%;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
   padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* Sliders */
+
+.slider-group {
+  gap: 14px;
 }
 
 .slider-label {
   display: flex;
   flex-direction: column;
+  gap: 4px;
   font-size: 11px;
-  color: #ccc;
+  color: var(--text-muted);
+  width: 100px;
 }
 
-.slider-label input[type="range"] {
-  width: 90px;
+.slider-label-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
 }
 
-#toolbar button {
-  padding: 8px 12px;
+.slider-label-top span:last-child {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  cursor: pointer;
   border: none;
-  border-radius: 6px;
-  background: #3a3a4d;
-  color: #fff;
-  font-size: 13px;
 }
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  cursor: pointer;
+  border: none;
+}
+
+/* Buttons */
+
+.icon-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 52px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.icon-btn .icon {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.icon-btn:active {
+  transform: scale(0.94);
+}
+
+.icon-btn:hover {
+  background: var(--surface-3);
+}
+
+.icon-btn.accent {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.icon-btn.accent:hover {
+  background: var(--accent);
+  color: #0e1420;
+}
+
+.icon-btn.small {
+  min-width: auto;
+  flex-direction: row;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none;
+}
+
+/* ---------------- Canvas ---------------- */
 
 #canvasWrap {
   position: relative;
   width: 100%;
-  height: calc(100% - 70px);
-  background: #ffffff;
+  height: calc(100% - 90px);
+  margin-top: 8px;
+  background:
+    linear-gradient(45deg, #e9e9ee 25%, transparent 25%) -10px 0/20px 20px,
+    linear-gradient(-45deg, #e9e9ee 25%, transparent 25%) -10px 0/20px 20px,
+    linear-gradient(45deg, transparent 75%, #e9e9ee 75%) -10px 0/20px 20px,
+    linear-gradient(-45deg, transparent 75%, #e9e9ee 75%) -10px 0/20px 20px,
+    #ffffff;
   touch-action: none;
 }
 
@@ -69,74 +238,80 @@ html, body {
   display: block;
 }
 
-/* ---- Layer panel ---- */
+/* ---------------- Layer panel ---------------- */
 
 #layerPanel {
   position: fixed;
-  right: 0;
-  top: 62px;
-  bottom: 0;
-  width: 220px;
+  right: 10px;
+  top: 100px;
+  bottom: 10px;
+  width: 230px;
   max-width: 70vw;
-  background: #14141c;
-  color: #eee;
-  border-left: 1px solid #333;
+  background: rgba(33, 33, 40, 0.9);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
   z-index: 10;
   display: flex;
   flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  overflow: hidden;
+  transform: translateX(0);
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 #layerPanel.hidden {
-  display: none;
+  transform: translateX(calc(100% + 20px));
+  opacity: 0;
+  pointer-events: none;
 }
 
 #layerPanelHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
-  border-bottom: 1px solid #333;
-  font-size: 14px;
-}
-
-#layerPanelHeader button {
-  padding: 6px 10px;
-  border: none;
-  border-radius: 6px;
-  background: #3a3a4d;
-  color: #fff;
-  font-size: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
 }
 
 #layerList {
   overflow-y: auto;
   flex: 1;
-  padding: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .layer-item {
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 8px;
-  margin-bottom: 6px;
-  background: #1f1f2b;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  background: var(--surface-2);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .layer-item.active {
-  border-color: #5aa0ff;
-  background: #232a3d;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--surface-3);
 }
 
 .layer-item-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .layer-name {
-  font-size: 13px;
+  font-size: 12.5px;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -150,19 +325,25 @@ html, body {
 
 .layer-controls button {
   border: none;
-  border-radius: 4px;
-  background: #3a3a4d;
-  color: #fff;
-  font-size: 12px;
-  padding: 3px 6px;
+  border-radius: 7px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 11px;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+
+.layer-controls button:hover {
+  background: var(--accent);
+  color: #0e1420;
 }
 
 .layer-opacity-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: #ccc;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-muted);
 }
 
 .layer-opacity-row input[type="range"] {

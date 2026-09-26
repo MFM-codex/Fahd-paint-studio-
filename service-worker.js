@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vibe-draw-v3';
+const CACHE_NAME = 'vibe-draw-v4';
 const FILES_TO_CACHE = [
   './',
   './index.html',

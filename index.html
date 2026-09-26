@@ -5,27 +5,40 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Vibe Draw</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1e1e28">
+<meta name="theme-color" content="#17171d">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <div id="toolbar">
-    <input type="color" id="colorPicker" value="#000000" title="Color">
-    <label class="slider-label">
-      Size
-      <input type="range" id="sizeSlider" min="1" max="60" value="6">
-    </label>
-    <label class="slider-label">
-      Opacity
-      <input type="range" id="opacitySlider" min="1" max="100" value="100">
-    </label>
-    <button id="undoBtn">Undo</button>
-    <button id="redoBtn">Redo</button>
-    <button id="clearBtn">Clear Layer</button>
-    <button id="saveBtn">Save PNG</button>
-    <button id="layersToggleBtn">Layers</button>
+    <div class="tool-group">
+      <label class="swatch-wrap" title="Color">
+        <input type="color" id="colorPicker" value="#000000">
+      </label>
+    </div>
+
+    <div class="tool-group slider-group">
+      <label class="slider-label">
+        <span class="slider-label-top"><span>Size</span><span id="sizeValue">6</span></span>
+        <input type="range" id="sizeSlider" min="1" max="60" value="6">
+      </label>
+      <label class="slider-label">
+        <span class="slider-label-top"><span>Opacity</span><span id="opacityValue">100</span></span>
+        <input type="range" id="opacitySlider" min="1" max="100" value="100">
+      </label>
+    </div>
+
+    <div class="tool-group">
+      <button id="undoBtn" class="icon-btn" title="Undo"><span class="icon">↺</span><span class="label">Undo</span></button>
+      <button id="redoBtn" class="icon-btn" title="Redo"><span class="icon">↻</span><span class="label">Redo</span></button>
+    </div>
+
+    <div class="tool-group">
+      <button id="clearBtn" class="icon-btn" title="Clear active layer"><span class="icon">⌫</span><span class="label">Clear</span></button>
+      <button id="saveBtn" class="icon-btn accent" title="Save as PNG"><span class="icon">⇩</span><span class="label">Save</span></button>
+      <button id="layersToggleBtn" class="icon-btn" title="Toggle layers panel"><span class="icon">▤</span><span class="label">Layers</span></button>
+    </div>
   </div>
 
   <div id="canvasWrap">
@@ -35,16 +48,13 @@
   <div id="layerPanel" class="hidden">
     <div id="layerPanelHeader">
       <span>Layers</span>
-      <button id="addLayerBtn">+ Add</button>
+      <button id="addLayerBtn" class="icon-btn accent small">+ Add</button>
     </div>
     <div id="layerList"></div>
   </div>
 
   <script src="app.js"></script>
   <script>
-    // Register the service worker, and automatically reload the page
-    // the moment a newer version has taken over - this is what stops
-    // the "I pushed an update but my phone still shows the old app" problem.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('service-worker.js');
 
@@ -55,6 +65,15 @@
         window.location.reload();
       });
     }
+
+    // Small nicety: show the live numeric value next to Size/Opacity sliders
+    const sizeSlider = document.getElementById('sizeSlider');
+    const sizeValue = document.getElementById('sizeValue');
+    sizeSlider.addEventListener('input', () => sizeValue.textContent = sizeSlider.value);
+
+    const opacitySlider = document.getElementById('opacitySlider');
+    const opacityValue = document.getElementById('opacityValue');
+    opacitySlider.addEventListener('input', () => opacityValue.textContent = opacitySlider.value);
   </script>
 </body>
 </html>
