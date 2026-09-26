@@ -1,13 +1,11 @@
-// ---- Stage 3: adds undo/redo on top of the Stage 2 layer system ----
+// ---- Stage 4: color palette + layer grouping + front/back ordering ----
 //
-// How undo/redo works here (simple explanation):
-// Right before you start a new stroke, we take a "snapshot" (a saved
-// picture) of whatever that layer looked like at that exact moment,
-// and store it in a list called the "undo stack."
-// Tapping Undo pops the most recent snapshot off that list and puts
-// the layer back to how it looked then - and saves what it looked like
-// just before undoing onto a second list, the "redo stack," so Redo
-// can bring it back forward again.
+// Big change under the hood: the "active layer" and any selections are now
+// tracked by a permanent ID number, not by their position in the list.
+// This matters because grouping / front / back can jump a layer to a
+// totally different position - if we tracked it by position, the app could
+// end up drawing on the wrong layer after a reorder. Tracking by ID means
+// it always finds the *same* layer, wherever it currently sits.
 
 const displayCanvas = document.getElementById('drawCanvas');
 const displayCtx = displayCanvas.getContext('2d');
@@ -23,10 +21,29 @@ const layersToggleBtn = document.getElementById('layersToggleBtn');
 const layerPanel = document.getElementById('layerPanel');
 const layerList = document.getElementById('layerList');
 const addLayerBtn = document.getElementById('addLayerBtn');
+const groupBtn = document.getElementById('groupBtn');
+const paletteGroup = document.getElementById('paletteGroup');
+
+// A curated set of tones for realistic skin, hair, eyes and lips -
+// tap one to load it straight into the brush color.
+const HUMAN_PALETTE = [
+  // Skin tones, light to deep
+  '#ffdbac', '#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#5c3a21',
+  // Blush / lips
+  '#e8909a', '#c1666b', '#8b3a3a',
+  // Hair
+  '#1a1a1a', '#3b2314', '#7a4b28', '#d1a054', '#c0392b',
+  // Eyes
+  '#4a6fa5', '#4e7a51', '#6b4f3b'
+];
 
 let layers = [];
-let activeLayerIndex = 0;
+let activeLayerId = null;
 let layerCounter = 0;
+
+let groups = {}; // groupId -> { id, name }
+let groupCounter = 0;
+let selectedForGrouping = new Set(); // layer ids currently checked in the panel
 
 let drawing = false;
 let lastX = 0;
@@ -35,6 +52,16 @@ let lastY = 0;
 const MAX_HISTORY = 20;
 let undoStack = []; // each entry: { layerId, dataURL }
 let redoStack = [];
+
+// ---------- Small helpers ----------
+
+function findLayerById(id) {
+  return layers.find(l => l.id === id);
+}
+
+function getActiveLayer() {
+  return findLayerById(activeLayerId);
+}
 
 // ---------- Layer management ----------
 
@@ -56,73 +83,137 @@ function createLayer(opts = {}) {
     canvas,
     ctx,
     opacity: 1,
-    visible: true
+    visible: true,
+    groupId: null
   };
 }
 
 function addLayer() {
   const layer = createLayer({ name: `Layer ${layerCounter + 1}` });
-  layers.splice(activeLayerIndex + 1, 0, layer);
-  activeLayerIndex = activeLayerIndex + 1;
+  const activeIndex = layers.findIndex(l => l.id === activeLayerId);
+  layers.splice(activeIndex + 1, 0, layer);
+  activeLayerId = layer.id;
   renderLayerPanel();
   compositeAndRender();
 }
 
-function deleteLayer(index) {
+function deleteLayer(id) {
   if (layers.length <= 1) {
     alert("You need at least one layer.");
     return;
   }
-  const removedId = layers[index].id;
+  const index = layers.findIndex(l => l.id === id);
   layers.splice(index, 1);
-  if (activeLayerIndex >= layers.length) {
-    activeLayerIndex = layers.length - 1;
+  selectedForGrouping.delete(id);
+  if (activeLayerId === id) {
+    const fallback = layers[Math.max(0, index - 1)];
+    activeLayerId = fallback.id;
   }
-  // Drop any undo/redo history that points at the now-deleted layer
-  undoStack = undoStack.filter(entry => entry.layerId !== removedId);
-  redoStack = redoStack.filter(entry => entry.layerId !== removedId);
+  undoStack = undoStack.filter(entry => entry.layerId !== id);
+  redoStack = redoStack.filter(entry => entry.layerId !== id);
   updateUndoRedoButtons();
   renderLayerPanel();
   compositeAndRender();
 }
 
-function moveLayer(index, direction) {
+function moveLayerStep(id, direction) {
+  const index = layers.findIndex(l => l.id === id);
   const newIndex = index + direction;
   if (newIndex < 0 || newIndex >= layers.length) return;
+  // Don't let a step-move break a group's members apart
+  if (layers[index].groupId !== null || layers[newIndex].groupId !== null) return;
   const temp = layers[index];
   layers[index] = layers[newIndex];
   layers[newIndex] = temp;
-  if (activeLayerIndex === index) {
-    activeLayerIndex = newIndex;
-  } else if (activeLayerIndex === newIndex) {
-    activeLayerIndex = index;
+  renderLayerPanel();
+  compositeAndRender();
+}
+
+function bringToFront(id) {
+  const index = layers.findIndex(l => l.id === id);
+  const [layer] = layers.splice(index, 1);
+  layers.push(layer);
+  renderLayerPanel();
+  compositeAndRender();
+}
+
+function sendToBack(id) {
+  const index = layers.findIndex(l => l.id === id);
+  const [layer] = layers.splice(index, 1);
+  layers.unshift(layer);
+  renderLayerPanel();
+  compositeAndRender();
+}
+
+function setActiveLayer(id) {
+  activeLayerId = id;
+  renderLayerPanel();
+}
+
+function setLayerOpacity(id, value) {
+  findLayerById(id).opacity = value;
+  compositeAndRender();
+}
+
+function toggleSelectedForGrouping(id) {
+  if (selectedForGrouping.has(id)) {
+    selectedForGrouping.delete(id);
+  } else {
+    selectedForGrouping.add(id);
   }
   renderLayerPanel();
-  compositeAndRender();
 }
 
-function setActiveLayer(index) {
-  activeLayerIndex = index;
+// ---------- Groups ----------
+
+function groupSelected() {
+  const ids = Array.from(selectedForGrouping);
+  if (ids.length < 2) {
+    alert('Check at least 2 layers first (tap the checkbox on each), then tap Group.');
+    return;
+  }
+  const groupId = ++groupCounter;
+  groups[groupId] = { id: groupId, name: `Group ${groupId}` };
+
+  const grouped = layers.filter(l => ids.includes(l.id));
+  const rest = layers.filter(l => !ids.includes(l.id));
+  grouped.forEach(l => { l.groupId = groupId; });
+
+  // The new group is placed on top of everything else, as one block.
+  layers = [...rest, ...grouped];
+  selectedForGrouping.clear();
   renderLayerPanel();
-}
-
-function setLayerOpacity(index, value) {
-  layers[index].opacity = value;
   compositeAndRender();
 }
 
-function findLayerById(id) {
-  return layers.find(l => l.id === id);
+function ungroup(groupId) {
+  layers.forEach(l => { if (l.groupId === groupId) l.groupId = null; });
+  delete groups[groupId];
+  renderLayerPanel();
+  compositeAndRender();
+}
+
+function groupBringToFront(groupId) {
+  const members = layers.filter(l => l.groupId === groupId);
+  const rest = layers.filter(l => l.groupId !== groupId);
+  layers = [...rest, ...members];
+  renderLayerPanel();
+  compositeAndRender();
+}
+
+function groupSendToBack(groupId) {
+  const members = layers.filter(l => l.groupId === groupId);
+  const rest = layers.filter(l => l.groupId !== groupId);
+  layers = [...members, ...rest];
+  renderLayerPanel();
+  compositeAndRender();
 }
 
 // ---------- Undo / Redo ----------
 
 function pushUndoSnapshot(layer) {
   undoStack.push({ layerId: layer.id, dataURL: layer.canvas.toDataURL() });
-  if (undoStack.length > MAX_HISTORY) {
-    undoStack.shift();
-  }
-  // Any new action invalidates the redo history
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
   redoStack = [];
   updateUndoRedoButtons();
 }
@@ -142,11 +233,7 @@ function undo() {
   if (undoStack.length === 0) return;
   const entry = undoStack.pop();
   const layer = findLayerById(entry.layerId);
-  if (!layer) {
-    updateUndoRedoButtons();
-    undo(); // that layer's gone, try the next history entry
-    return;
-  }
+  if (!layer) { updateUndoRedoButtons(); undo(); return; }
   const currentDataURL = layer.canvas.toDataURL();
   restoreSnapshotToLayer(layer, entry.dataURL, () => {
     redoStack.push({ layerId: layer.id, dataURL: currentDataURL });
@@ -158,11 +245,7 @@ function redo() {
   if (redoStack.length === 0) return;
   const entry = redoStack.pop();
   const layer = findLayerById(entry.layerId);
-  if (!layer) {
-    updateUndoRedoButtons();
-    redo();
-    return;
-  }
+  if (!layer) { updateUndoRedoButtons(); redo(); return; }
   const currentDataURL = layer.canvas.toDataURL();
   restoreSnapshotToLayer(layer, entry.dataURL, () => {
     undoStack.push({ layerId: layer.id, dataURL: currentDataURL });
@@ -173,8 +256,6 @@ function redo() {
 function updateUndoRedoButtons() {
   undoBtn.disabled = undoStack.length === 0;
   redoBtn.disabled = redoStack.length === 0;
-  undoBtn.style.opacity = undoBtn.disabled ? 0.4 : 1;
-  redoBtn.style.opacity = redoBtn.disabled ? 0.4 : 1;
 }
 
 // ---------- Rendering ----------
@@ -189,63 +270,150 @@ function compositeAndRender() {
   displayCtx.globalAlpha = 1;
 }
 
+function buildLayerItem(layer, index) {
+  const item = document.createElement('div');
+  item.className = 'layer-item' + (layer.id === activeLayerId ? ' active' : '');
+
+  const top = document.createElement('div');
+  top.className = 'layer-item-top';
+
+  // Only ungrouped layers can be checked off for grouping
+  if (layer.groupId === null) {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = selectedForGrouping.has(layer.id);
+    checkbox.addEventListener('click', (e) => e.stopPropagation());
+    checkbox.addEventListener('change', () => toggleSelectedForGrouping(layer.id));
+    top.appendChild(checkbox);
+  }
+
+  const name = document.createElement('div');
+  name.className = 'layer-name';
+  name.textContent = layer.name;
+  name.addEventListener('click', () => setActiveLayer(layer.id));
+
+  const controls = document.createElement('div');
+  controls.className = 'layer-controls';
+
+  const isGrouped = layer.groupId !== null;
+
+  const frontBtn = document.createElement('button');
+  frontBtn.textContent = '⤒';
+  frontBtn.title = 'Bring to front';
+  frontBtn.addEventListener('click', (e) => { e.stopPropagation(); bringToFront(layer.id); });
+
+  const upBtn = document.createElement('button');
+  upBtn.textContent = '↑';
+  upBtn.title = 'Move up';
+  upBtn.disabled = isGrouped;
+  upBtn.addEventListener('click', (e) => { e.stopPropagation(); moveLayerStep(layer.id, 1); });
+
+  const downBtn = document.createElement('button');
+  downBtn.textContent = '↓';
+  downBtn.title = 'Move down';
+  downBtn.disabled = isGrouped;
+  downBtn.addEventListener('click', (e) => { e.stopPropagation(); moveLayerStep(layer.id, -1); });
+
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '⤓';
+  backBtn.title = 'Send to back';
+  backBtn.addEventListener('click', (e) => { e.stopPropagation(); sendToBack(layer.id); });
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '✕';
+  delBtn.title = 'Delete layer';
+  delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteLayer(layer.id); });
+
+  controls.appendChild(frontBtn);
+  controls.appendChild(upBtn);
+  controls.appendChild(downBtn);
+  controls.appendChild(backBtn);
+  controls.appendChild(delBtn);
+
+  top.appendChild(name);
+  top.appendChild(controls);
+
+  const opacityRow = document.createElement('div');
+  opacityRow.className = 'layer-opacity-row';
+  const opLabel = document.createElement('span');
+  opLabel.textContent = 'Opacity';
+  const opSlider = document.createElement('input');
+  opSlider.type = 'range';
+  opSlider.min = '0';
+  opSlider.max = '100';
+  opSlider.value = Math.round(layer.opacity * 100);
+  opSlider.addEventListener('input', () => setLayerOpacity(layer.id, opSlider.value / 100));
+  opacityRow.appendChild(opLabel);
+  opacityRow.appendChild(opSlider);
+
+  item.addEventListener('click', () => setActiveLayer(layer.id));
+  item.appendChild(top);
+  item.appendChild(opacityRow);
+  return item;
+}
+
 function renderLayerPanel() {
   layerList.innerHTML = '';
-  for (let i = layers.length - 1; i >= 0; i--) {
+  groupBtn.textContent = selectedForGrouping.size >= 2
+    ? `Group (${selectedForGrouping.size})`
+    : 'Group';
+
+  // Walk top-to-bottom (last array item = top of the stack).
+  // Contiguous layers sharing a groupId get wrapped together.
+  let i = layers.length - 1;
+  while (i >= 0) {
     const layer = layers[i];
-    const item = document.createElement('div');
-    item.className = 'layer-item' + (i === activeLayerIndex ? ' active' : '');
 
-    const top = document.createElement('div');
-    top.className = 'layer-item-top';
+    if (layer.groupId !== null) {
+      const groupId = layer.groupId;
+      const memberIndexes = [];
+      while (i >= 0 && layers[i].groupId === groupId) {
+        memberIndexes.push(i);
+        i--;
+      }
 
-    const name = document.createElement('div');
-    name.className = 'layer-name';
-    name.textContent = layer.name;
-    name.addEventListener('click', () => setActiveLayer(i));
+      const wrapper = document.createElement('div');
+      wrapper.className = 'group-wrapper';
 
-    const controls = document.createElement('div');
-    controls.className = 'layer-controls';
+      const header = document.createElement('div');
+      header.className = 'group-header';
 
-    const upBtn = document.createElement('button');
-    upBtn.textContent = '↑';
-    upBtn.addEventListener('click', (e) => { e.stopPropagation(); moveLayer(i, 1); });
+      const gName = document.createElement('span');
+      gName.className = 'group-name';
+      gName.textContent = groups[groupId] ? groups[groupId].name : `Group ${groupId}`;
 
-    const downBtn = document.createElement('button');
-    downBtn.textContent = '↓';
-    downBtn.addEventListener('click', (e) => { e.stopPropagation(); moveLayer(i, -1); });
+      const gFront = document.createElement('button');
+      gFront.textContent = '⤒';
+      gFront.title = 'Bring group to front';
+      gFront.addEventListener('click', () => groupBringToFront(groupId));
 
-    const delBtn = document.createElement('button');
-    delBtn.textContent = '✕';
-    delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteLayer(i); });
+      const gBack = document.createElement('button');
+      gBack.textContent = '⤓';
+      gBack.title = 'Send group to back';
+      gBack.addEventListener('click', () => groupSendToBack(groupId));
 
-    controls.appendChild(upBtn);
-    controls.appendChild(downBtn);
-    controls.appendChild(delBtn);
+      const gUngroup = document.createElement('button');
+      gUngroup.textContent = 'Ungroup';
+      gUngroup.addEventListener('click', () => ungroup(groupId));
 
-    top.appendChild(name);
-    top.appendChild(controls);
+      header.appendChild(gName);
+      header.appendChild(gFront);
+      header.appendChild(gBack);
+      header.appendChild(gUngroup);
 
-    const opacityRow = document.createElement('div');
-    opacityRow.className = 'layer-opacity-row';
-    const opLabel = document.createElement('span');
-    opLabel.textContent = 'Opacity';
-    const opSlider = document.createElement('input');
-    opSlider.type = 'range';
-    opSlider.min = '0';
-    opSlider.max = '100';
-    opSlider.value = Math.round(layer.opacity * 100);
-    opSlider.addEventListener('input', () => {
-      setLayerOpacity(i, opSlider.value / 100);
-    });
+      const membersDiv = document.createElement('div');
+      membersDiv.className = 'group-members';
+      for (const idx of memberIndexes) {
+        membersDiv.appendChild(buildLayerItem(layers[idx], idx));
+      }
 
-    opacityRow.appendChild(opLabel);
-    opacityRow.appendChild(opSlider);
-
-    item.addEventListener('click', () => setActiveLayer(i));
-    item.appendChild(top);
-    item.appendChild(opacityRow);
-    layerList.appendChild(item);
+      wrapper.appendChild(header);
+      wrapper.appendChild(membersDiv);
+      layerList.appendChild(wrapper);
+    } else {
+      layerList.appendChild(buildLayerItem(layer, i));
+      i--;
+    }
   }
 }
 
@@ -288,10 +456,7 @@ function startDraw(e) {
   const pos = getPos(e);
   lastX = pos.x;
   lastY = pos.y;
-
-  // Save what this layer looked like right before this stroke begins
-  pushUndoSnapshot(layers[activeLayerIndex]);
-
+  pushUndoSnapshot(getActiveLayer());
   drawSegment(pos.x, pos.y, pos.x, pos.y, e.pressure);
 }
 
@@ -312,9 +477,7 @@ function drawSegment(x1, y1, x2, y2, pressure) {
   const baseSize = parseFloat(sizeSlider.value);
   const strokeOpacity = parseFloat(opacitySlider.value) / 100;
 
-  const activeLayer = layers[activeLayerIndex];
-  const ctx = activeLayer.ctx;
-
+  const ctx = getActiveLayer().ctx;
   ctx.globalAlpha = strokeOpacity;
   ctx.strokeStyle = colorPicker.value;
   ctx.lineWidth = baseSize * p;
@@ -344,7 +507,7 @@ undoBtn.addEventListener('click', undo);
 redoBtn.addEventListener('click', redo);
 
 clearBtn.addEventListener('click', () => {
-  const layer = layers[activeLayerIndex];
+  const layer = getActiveLayer();
   pushUndoSnapshot(layer);
   layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
   compositeAndRender();
@@ -363,7 +526,6 @@ saveBtn.addEventListener('click', () => {
     tctx.drawImage(layer.canvas, 0, 0);
   }
   tctx.globalAlpha = 1;
-
   const link = document.createElement('a');
   link.download = 'drawing.png';
   link.href = temp.toDataURL('image/png');
@@ -371,10 +533,24 @@ saveBtn.addEventListener('click', () => {
 });
 
 layersToggleBtn.addEventListener('click', () => {
-  layerPanel.classList.toggle('hidden');
+  layerPanel.classList.toggle('open');
 });
 
 addLayerBtn.addEventListener('click', addLayer);
+groupBtn.addEventListener('click', groupSelected);
+
+// ---------- Palette ----------
+
+function buildPalette() {
+  HUMAN_PALETTE.forEach(hex => {
+    const btn = document.createElement('button');
+    btn.className = 'palette-swatch';
+    btn.style.background = hex;
+    btn.title = hex;
+    btn.addEventListener('click', () => { colorPicker.value = hex; });
+    paletteGroup.appendChild(btn);
+  });
+}
 
 // ---------- Init ----------
 
@@ -385,8 +561,9 @@ function init() {
 
   const background = createLayer({ name: 'Background', fillWhite: true });
   layers.push(background);
-  activeLayerIndex = 0;
+  activeLayerId = background.id;
 
+  buildPalette();
   renderLayerPanel();
   compositeAndRender();
   updateUndoRedoButtons();

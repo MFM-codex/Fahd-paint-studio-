@@ -13,9 +13,13 @@
 
   <div id="toolbar">
     <div class="tool-group">
-      <label class="swatch-wrap" title="Color">
+      <label class="swatch-wrap" title="Custom color">
         <input type="color" id="colorPicker" value="#000000">
       </label>
+    </div>
+
+    <div class="tool-group palette-group" id="paletteGroup">
+      <!-- Filled in by app.js: curated skin/hair/eye/lip tones -->
     </div>
 
     <div class="tool-group slider-group">
@@ -45,10 +49,13 @@
     <canvas id="drawCanvas"></canvas>
   </div>
 
-  <div id="layerPanel" class="hidden">
+  <div id="layerPanel">
     <div id="layerPanelHeader">
       <span>Layers</span>
-      <button id="addLayerBtn" class="icon-btn accent small">+ Add</button>
+      <div class="layer-header-actions">
+        <button id="groupBtn" class="icon-btn small" title="Group the checked layers">Group</button>
+        <button id="addLayerBtn" class="icon-btn accent small">+ Add</button>
+      </div>
     </div>
     <div id="layerList"></div>
   </div>
@@ -66,7 +73,6 @@
       });
     }
 
-    // Small nicety: show the live numeric value next to Size/Opacity sliders
     const sizeSlider = document.getElementById('sizeSlider');
     const sizeValue = document.getElementById('sizeValue');
     sizeSlider.addEventListener('input', () => sizeValue.textContent = sizeSlider.value);
