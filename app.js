@@ -1,13 +1,13 @@
-// ---- Stage 2: multi-layer canvas with pressure-sensitive drawing ----
+// ---- Stage 3: adds undo/redo on top of the Stage 2 layer system ----
 //
-// How layers work here (simple explanation):
-// Each "layer" is its own hidden <canvas> that nobody sees directly.
-// The one visible canvas (#drawCanvas) is just a "screen" that we
-// repaint by stacking all the hidden layer canvases on top of each other,
-// in order, respecting each layer's opacity. This is called "compositing."
-//
-// When you draw, you're only drawing onto the currently active layer's
-// hidden canvas. Then we re-composite so you see the result.
+// How undo/redo works here (simple explanation):
+// Right before you start a new stroke, we take a "snapshot" (a saved
+// picture) of whatever that layer looked like at that exact moment,
+// and store it in a list called the "undo stack."
+// Tapping Undo pops the most recent snapshot off that list and puts
+// the layer back to how it looked then - and saves what it looked like
+// just before undoing onto a second list, the "redo stack," so Redo
+// can bring it back forward again.
 
 const displayCanvas = document.getElementById('drawCanvas');
 const displayCtx = displayCanvas.getContext('2d');
@@ -15,6 +15,8 @@ const displayCtx = displayCanvas.getContext('2d');
 const colorPicker = document.getElementById('colorPicker');
 const sizeSlider = document.getElementById('sizeSlider');
 const opacitySlider = document.getElementById('opacitySlider');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
 const clearBtn = document.getElementById('clearBtn');
 const saveBtn = document.getElementById('saveBtn');
 const layersToggleBtn = document.getElementById('layersToggleBtn');
@@ -29,6 +31,10 @@ let layerCounter = 0;
 let drawing = false;
 let lastX = 0;
 let lastY = 0;
+
+const MAX_HISTORY = 20;
+let undoStack = []; // each entry: { layerId, dataURL }
+let redoStack = [];
 
 // ---------- Layer management ----------
 
@@ -56,7 +62,6 @@ function createLayer(opts = {}) {
 
 function addLayer() {
   const layer = createLayer({ name: `Layer ${layerCounter + 1}` });
-  // New layers go on top, right after the current active layer position+1
   layers.splice(activeLayerIndex + 1, 0, layer);
   activeLayerIndex = activeLayerIndex + 1;
   renderLayerPanel();
@@ -68,10 +73,15 @@ function deleteLayer(index) {
     alert("You need at least one layer.");
     return;
   }
+  const removedId = layers[index].id;
   layers.splice(index, 1);
   if (activeLayerIndex >= layers.length) {
     activeLayerIndex = layers.length - 1;
   }
+  // Drop any undo/redo history that points at the now-deleted layer
+  undoStack = undoStack.filter(entry => entry.layerId !== removedId);
+  redoStack = redoStack.filter(entry => entry.layerId !== removedId);
+  updateUndoRedoButtons();
   renderLayerPanel();
   compositeAndRender();
 }
@@ -101,11 +111,76 @@ function setLayerOpacity(index, value) {
   compositeAndRender();
 }
 
+function findLayerById(id) {
+  return layers.find(l => l.id === id);
+}
+
+// ---------- Undo / Redo ----------
+
+function pushUndoSnapshot(layer) {
+  undoStack.push({ layerId: layer.id, dataURL: layer.canvas.toDataURL() });
+  if (undoStack.length > MAX_HISTORY) {
+    undoStack.shift();
+  }
+  // Any new action invalidates the redo history
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+
+function restoreSnapshotToLayer(layer, dataURL, callback) {
+  const img = new Image();
+  img.onload = () => {
+    layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+    layer.ctx.drawImage(img, 0, 0);
+    compositeAndRender();
+    if (callback) callback();
+  };
+  img.src = dataURL;
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  const entry = undoStack.pop();
+  const layer = findLayerById(entry.layerId);
+  if (!layer) {
+    updateUndoRedoButtons();
+    undo(); // that layer's gone, try the next history entry
+    return;
+  }
+  const currentDataURL = layer.canvas.toDataURL();
+  restoreSnapshotToLayer(layer, entry.dataURL, () => {
+    redoStack.push({ layerId: layer.id, dataURL: currentDataURL });
+    updateUndoRedoButtons();
+  });
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  const entry = redoStack.pop();
+  const layer = findLayerById(entry.layerId);
+  if (!layer) {
+    updateUndoRedoButtons();
+    redo();
+    return;
+  }
+  const currentDataURL = layer.canvas.toDataURL();
+  restoreSnapshotToLayer(layer, entry.dataURL, () => {
+    undoStack.push({ layerId: layer.id, dataURL: currentDataURL });
+    updateUndoRedoButtons();
+  });
+}
+
+function updateUndoRedoButtons() {
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+  undoBtn.style.opacity = undoBtn.disabled ? 0.4 : 1;
+  redoBtn.style.opacity = redoBtn.disabled ? 0.4 : 1;
+}
+
 // ---------- Rendering ----------
 
 function compositeAndRender() {
   displayCtx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
-  // Layers are drawn bottom-to-top, in array order (index 0 = bottom)
   for (const layer of layers) {
     if (!layer.visible) continue;
     displayCtx.globalAlpha = layer.opacity;
@@ -116,7 +191,6 @@ function compositeAndRender() {
 
 function renderLayerPanel() {
   layerList.innerHTML = '';
-  // Show top layer first in the list (reverse of drawing order)
   for (let i = layers.length - 1; i >= 0; i--) {
     const layer = layers[i];
     const item = document.createElement('div');
@@ -185,7 +259,6 @@ function resizeCanvases() {
   displayCanvas.width = newWidth;
   displayCanvas.height = newHeight;
 
-  // Resize each layer canvas, keeping its existing drawing (scaled/copied as-is)
   for (const layer of layers) {
     const oldData = layer.canvas.toDataURL();
     layer.canvas.width = newWidth;
@@ -215,6 +288,10 @@ function startDraw(e) {
   const pos = getPos(e);
   lastX = pos.x;
   lastY = pos.y;
+
+  // Save what this layer looked like right before this stroke begins
+  pushUndoSnapshot(layers[activeLayerIndex]);
+
   drawSegment(pos.x, pos.y, pos.x, pos.y, e.pressure);
 }
 
@@ -263,14 +340,17 @@ displayCanvas.addEventListener('pointerleave', endDraw);
 
 // ---------- Toolbar buttons ----------
 
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+
 clearBtn.addEventListener('click', () => {
   const layer = layers[activeLayerIndex];
+  pushUndoSnapshot(layer);
   layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
   compositeAndRender();
 });
 
 saveBtn.addEventListener('click', () => {
-  // Flatten everything onto a temp white-backed canvas so exported PNG looks right
   const temp = document.createElement('canvas');
   temp.width = displayCanvas.width;
   temp.height = displayCanvas.height;
@@ -303,13 +383,13 @@ function init() {
   displayCanvas.width = wrap.clientWidth;
   displayCanvas.height = wrap.clientHeight;
 
-  // Start with one background layer (white) so exports look right
   const background = createLayer({ name: 'Background', fillWhite: true });
   layers.push(background);
   activeLayerIndex = 0;
 
   renderLayerPanel();
   compositeAndRender();
+  updateUndoRedoButtons();
 }
 
 init();

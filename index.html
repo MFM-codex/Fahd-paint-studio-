@@ -21,6 +21,8 @@
       Opacity
       <input type="range" id="opacitySlider" min="1" max="100" value="100">
     </label>
+    <button id="undoBtn">Undo</button>
+    <button id="redoBtn">Redo</button>
     <button id="clearBtn">Clear Layer</button>
     <button id="saveBtn">Save PNG</button>
     <button id="layersToggleBtn">Layers</button>
@@ -40,9 +42,17 @@
 
   <script src="app.js"></script>
   <script>
+    // Register the service worker, and automatically reload the page
+    // the moment a newer version has taken over - this is what stops
+    // the "I pushed an update but my phone still shows the old app" problem.
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js');
+      navigator.serviceWorker.register('service-worker.js');
+
+      let hasReloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (hasReloaded) return;
+        hasReloaded = true;
+        window.location.reload();
       });
     }
   </script>

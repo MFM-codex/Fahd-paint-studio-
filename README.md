@@ -1,45 +1,36 @@
-# Vibe Draw — Stage 2
+# Vibe Draw — Stage 3
 
-Adds multi-layer support on top of Stage 1's pressure-sensitive drawing.
+Adds Undo/Redo, plus an auto-update fix so future stages load automatically.
 
 ## What's new in this stage
 
-- Tap **"Layers"** in the toolbar to open/close the layer panel on the right.
-- **+ Add** creates a new transparent layer above the current one.
-- Tap a layer's name to make it the active one (that's the layer you'll draw on).
-- Each layer has its own **opacity slider**.
-- **↑ / ↓** reorder a layer (move it up or down the stack).
-- **✕** deletes a layer (you can't delete the last remaining layer).
-- "Clear Layer" now only clears the currently active layer, not everything.
-- "Save PNG" flattens all visible layers into one image, same as before.
+- **Undo** button steps backward through your last strokes (up to 20 steps).
+- **Redo** button brings back what you just undid.
+- Undo/redo works per-layer — undoing a stroke on Layer 2 won't touch Layer 1.
+- Buttons dim out when there's nothing to undo/redo.
+- **Auto-update fix:** the app now detects when a new version has been pushed to GitHub and reloads itself automatically. You should no longer need to manually clear browser cache after this stage.
 
 ## Updating your repo with this stage
 
-Same routine as before — from your Termux folder:
+Same as before — extract this zip into your project folder (overwrite when asked), then:
 
-```
+```bash
 cd ~/storage/shared/"Anime studio app(GEMINI version)"/vibe-draw-stage1-1
-```
-
-(or wherever you extract this new zip to — if it's a new folder, `cd` into that instead)
-
-Then unzip this new stage's files in, overwriting the old ones, and push:
-
-```
 git add .
-git commit -m "Stage 2: multi-layer system"
+git commit -m "Stage 3: undo/redo + auto-update fix"
 git push
 ```
 
-Your GitHub Pages link updates automatically within a minute or so of the push — no extra setup needed.
+**Heads up:** this is likely the *last* time you'll need to manually clear cache. Since your phone hasn't yet loaded a version with the auto-update code in it, this jump (Stage 2 → Stage 3) still needs one manual refresh. From Stage 3 onward, updates should apply themselves.
+
+If the new toolbar buttons don't show up within a minute of reopening the app, do the same cache-clear as last time (Browsing history + Cookies and site data + Cached images, "Last hour", Delete data) one more time. After that, it should self-update going forward.
 
 ## Try it
 
-- Add a couple of layers, draw something different on each.
-- Lower one layer's opacity and watch it blend with what's underneath.
-- Reorder layers and see how it changes which drawing sits "on top."
-- Delete a layer you don't need.
+- Draw a few strokes, then tap Undo a few times — watch them disappear one at a time.
+- Tap Redo to bring them back.
+- Switch to a different layer, draw something, undo it — confirm it only affects that layer.
 
-## Coming next (Stage 3)
+## Coming next (Stage 4)
 
-Undo/redo history, so you can step backward and forward through your strokes.
+Offline PWA polish — making sure the app installs cleanly and works with zero internet connection, plus a proper app icon.
